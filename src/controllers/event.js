@@ -1,6 +1,8 @@
 const faker = require('faker'); //For testing purpose only
 const moment = require('moment');
+const mongoose = require('mongoose');
 
+const Category = require('../models/category');
 const User = require('../models/user');
 const Event = require('../models/event');
 const {uploader} = require('../utils/index');
@@ -12,14 +14,15 @@ const limit_ = 5;
 // @access Public
 exports.index = async function (req, res) {
     let aggregate_options = [];
+    let group = (req.query.group !== 'false' && parseInt(req.query.group) !== 0);
+    let filter = !!(req.query.q);
+    let match_regex = {$regex: req.query.q, $options: 'i'}; //use $regex in mongodb - add the 'i' flag if you want the search to be case insensitive.
 
-    //PAGINATION
-    let page = parseInt(req.query.page) || 1;
-    let limit = parseInt(req.query.limit) || limit_;
 
-    //set the options for pagination
+    //PAGINATION -- set the options for pagination
     const options = {
-        page, limit,
+        page: parseInt(req.query.page) || 1,
+        limit: parseInt(req.query.limit) || limit_,
         collation: {locale: 'en'},
         customLabels: {
             totalDocs: 'totalResults',
@@ -27,42 +30,128 @@ exports.index = async function (req, res) {
         }
     };
 
+    //1
     //FILTERING AND PARTIAL TEXT SEARCH -- FIRST STAGE
-    let match = {};
+    if (filter) aggregate_options.push({$match: {"name": match_regex}});
 
-    //filter by name - use $regex in mongodb - add the 'i' flag if you want the search to be case insensitive.
-    if (req.query.q) match.name = {$regex: req.query.q, $options: 'i'};
+    //2
+    //LOOKUP/JOIN -- SECOND STAGE
+    //FIRST JOIN  -- Category ===================================
+    // Here we use $lookup(aggregation) to get the relationship from event to categories (one to many).
+    aggregate_options.push({
+        $lookup: {
+            from: 'categories',
+            localField: "category",
+            foreignField: "_id",
+            as: "categories"
+        }
+    });
+    //deconstruct the $purchases array using $unwind(aggregation).
+    aggregate_options.push({$unwind: {path: "$categories", preserveNullAndEmptyArrays: true}});
 
-    //filter by date
-    if (req.query.date) {
-        let d = moment(req.query.date);
-        let next_day = moment(d).add(1, 'days'); // add 1 day
-
-        match.start_date = {$gte: new Date(d), $lt: new Date(next_day)};
+    //2
+    //FILTER BY USERID -- SECOND STAGE - use mongoose.Types.ObjectId() to recreate the moogoses object id
+    if (req.query.user) {
+        aggregate_options.push({
+            $match: {
+                userId: mongoose.Types.ObjectId(req.query.user)
+            }
+        });
     }
 
-    aggregate_options.push({$match: match});
-
-    //GROUPING -- SECOND STAGE
-    if (req.query.group !== 'false' && parseInt(req.query.group) !== 0) {
-        let group = {
-            _id: {$dateToString: {format: "%Y-%m-%d", date: "$start_date"}}, // Group By Expression
-            data: {$push: "$$ROOT"}
-        };
-
-        aggregate_options.push({$group: group});
+    //3
+    //FILTER BY Category -- THIRD STAGE - use mongoose.Types.ObjectId() to recreate the moogoses object id
+    if (req.query.category) {
+        aggregate_options.push({
+            $match: {
+                category: mongoose.Types.ObjectId(req.query.category)
+            }
+        });
     }
 
-    //SORTING -- THIRD STAGE
-    let sortOrder = req.query.sort_order && req.query.sort_order === 'desc' ? -1 : 1;
-    aggregate_options.push({$sort: {"data.start_date": sortOrder}});
 
-    //LOOKUP/JOIN -- FOURTH STAGE
-    // aggregate_options.push({$lookup: {from: 'interested', localField: "_id", foreignField: "eventId", as: "interested"}});
+    //3
+    //FILTER BY EventID -- THIRD STAGE - use mongoose.Types.ObjectId() to recreate the moogoses object id
+    if (req.query.id) {
+        aggregate_options.push({
+            $match: {
+                _id: mongoose.Types.ObjectId(req.query.id)
+            }
+        });
+    }
+
+    //4
+    //FILTER BY DATE -- FOURTH STAGE
+    if (req.query.start) {
+        let end = moment(req.query.start);
+        end = moment(end).add(1, 'days'); // add 1 day
+
+        if (req.query.end) end = req.query.end;
+
+        aggregate_options.push({
+            $match: {
+                "start_date": {$gte: new Date(req.query.start)},
+                "end_date": {$lt: new Date(end)}
+            }
+        });
+    }else if (req.query.end) {
+        aggregate_options.push({
+            $match: {"start_date": {$lte: new Date(req.query.end)}}
+        });
+    }else {
+        aggregate_options.push({
+            $match: {"start_date": {$gte: new Date()}}
+        });
+    }
+
+    //5
+    //SORTING -- FIFTH STAGE - SORT BY DATE
+    aggregate_options.push({
+        $sort: {
+            "start_date": req.query.sort_order && req.query.sort_order === 'asc' ? 1 : -1,
+            "_id": -1
+        }
+    });
+
+    //SELECT FIELDS
+    aggregate_options.push({
+        $project: {
+            _id: 1,
+            userId: 1,
+            name: 1,
+            location: 1,
+            start_date: 1,
+            description: 1,
+            category: { $ifNull: [ "$categories.name", null ] },
+            image: 1,
+            createdAt: 1
+        }
+    });
+
+    //6
+    //GROUPING -- LAST STAGE
+    if (group) {
+        aggregate_options.push({
+            $group: {
+                _id: {$dateToString: {format: "%Y-%m-%d", date: "$start_date"}},
+                data: {$push: "$$ROOT"}
+            }
+        });
+        aggregate_options.push({
+            $sort: {
+                "data.start_date": req.query.sort_order && req.query.sort_order === 'asc' ? 1 : -1
+            }
+        });
+    }
+    // END GROUPING ===================================
 
     // Set up the aggregation
     const myAggregate = Event.aggregate(aggregate_options);
     const result = await Event.aggregatePaginate(myAggregate, options);
+
+    const categories = await Category.find({});
+    result["categories"] = categories;
+    result["grouped"] = group;
     res.status(200).json(result);
 };
 

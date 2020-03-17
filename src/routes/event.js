@@ -17,6 +17,7 @@ router.get('/', Event.index);
 
 //STORE
 router.post('/', upload, [
+    check('category').not().isEmpty().withMessage('Category is required'),
     check('name').not().isEmpty().withMessage('Event name is required'),
     check('location').not().isEmpty().withMessage('Event location is required'),
     check('start_date').not().isEmpty().withMessage('Event start date and time is required'),
