@@ -16,4 +16,4 @@ const CategorySchema = new mongoose.Schema({
 }, {timestamps: true});
 
 CategorySchema.plugin(aggregatePaginate);
-module.exports = mongoose.model('Tiers', CategorySchema);
+module.exports = mongoose.model('Categories', CategorySchema);
