@@ -41,7 +41,13 @@ const EventSchema = new mongoose.Schema({
         type: String,
         required: false,
         max: 255
-    }
+    },
+
+    category: {
+        type: mongoose.ObjectId,
+        required: true,
+        ref: 'Product'
+    },
 
 }, {timestamps: true});
 
