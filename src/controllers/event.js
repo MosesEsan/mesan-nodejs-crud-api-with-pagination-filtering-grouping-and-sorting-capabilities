@@ -122,6 +122,7 @@ exports.index = async function (req, res) {
             location: 1,
             start_date: 1,
             description: 1,
+            categoryId: { $ifNull: [ "$categories._id", null ] },
             category: { $ifNull: [ "$categories.name", null ] },
             image: 1,
             createdAt: 1
