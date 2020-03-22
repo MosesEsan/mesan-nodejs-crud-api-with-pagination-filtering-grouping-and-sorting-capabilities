@@ -91,9 +91,15 @@ exports.index = async function (req, res) {
         aggregate_options.push({
             $match: {
                 "start_date": {$gte: new Date(req.query.start)},
-                "end_date": {$lt: new Date(end)}
+                "start_date": {$lt: new Date(end)}
             }
         });
+
+
+        console.log(            {
+            "start_date": {$gte: new Date(req.query.start)},
+            "start_date": {$lt: new Date(end)}
+        })
     }else if (req.query.end) {
         aggregate_options.push({
             $match: {"start_date": {$lte: new Date(req.query.end)}}
