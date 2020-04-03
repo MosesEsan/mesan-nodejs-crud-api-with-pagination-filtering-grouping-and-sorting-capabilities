@@ -49,7 +49,7 @@ exports.index = async function (req, res) {
     //deconstruct the $purchases array using $unwind(aggregation).
     aggregate_options.push({$unwind: {path: "$categories", preserveNullAndEmptyArrays: true}});
 
-    //2
+    //3a
     //FILTER BY USERID -- SECOND STAGE - use mongoose.Types.ObjectId() to recreate the moogoses object id
     if (req.query.user) {
         aggregate_options.push({
@@ -59,7 +59,7 @@ exports.index = async function (req, res) {
         });
     }
 
-    //3
+    //3b
     //FILTER BY Category -- THIRD STAGE - use mongoose.Types.ObjectId() to recreate the moogoses object id
     if (req.query.category) {
         aggregate_options.push({
@@ -70,7 +70,7 @@ exports.index = async function (req, res) {
     }
 
 
-    //3
+    //3c
     //FILTER BY EventID -- THIRD STAGE - use mongoose.Types.ObjectId() to recreate the moogoses object id
     if (req.query.id) {
         aggregate_options.push({
@@ -119,6 +119,7 @@ exports.index = async function (req, res) {
             name: 1,
             location: 1,
             start_date: 1,
+            end_date: 1,
             description: 1,
             category: { $ifNull: [ "$categories._id", null ] },
             category_name: { $ifNull: [ "$categories.name", null ] },
