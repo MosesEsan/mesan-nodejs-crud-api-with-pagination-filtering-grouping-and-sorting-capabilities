@@ -230,7 +230,9 @@ exports.destroy = async function (req, res) {
         const id = req.params.id;
         const userId = req.user._id;
 
-        await Event.findOneAndDelete({_id: id, userId});
+        const event = await Event.findOneAndDelete({_id: id, userId});
+
+        if (!event) return res.status(401).json({message: "Event does not exist or you don't have the required permission."});
 
         res.status(200).json({message: 'Event has been deleted'});
     } catch (error) {
