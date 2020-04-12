@@ -18,7 +18,6 @@ exports.index = async function (req, res) {
     let filter = !!(req.query.q);
     let match_regex = {$regex: req.query.q, $options: 'i'}; //use $regex in mongodb - add the 'i' flag if you want the search to be case insensitive.
 
-
     //PAGINATION -- set the options for pagination
     const options = {
         page: parseInt(req.query.page) || 1,
@@ -83,13 +82,13 @@ exports.index = async function (req, res) {
     //4
     //FILTER BY DATE -- FOURTH STAGE
     if (req.query.start) {
-        let end = moment(req.query.start);
-        end = moment(end).add(1, 'days'); // add 1 day
+        let start = moment(req.query.start).startOf('day');
+        let end = moment(req.query.start).endOf('day'); // add 1 day
 
         if (req.query.end) end = req.query.end;
 
         aggregate_options.push({
-            $match: {"start_date": {$gte: new Date(req.query.start), $lt: new Date(end)}}
+            $match: {"start_date": {$gte: new Date(start), $lte: new Date(end)}}
         });
 
     }else if (req.query.end) {
