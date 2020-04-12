@@ -15,7 +15,7 @@ const limit_ = 5;
 exports.index = async function (req, res) {
     let aggregate_options = [];
     let group = (req.query.group !== 'false' && parseInt(req.query.group) !== 0);
-    let filter = !!(req.query.q);
+    let search = !!(req.query.q);
     let match_regex = {$regex: req.query.q, $options: 'i'}; //use $regex in mongodb - add the 'i' flag if you want the search to be case insensitive.
 
     //PAGINATION -- set the options for pagination
@@ -31,7 +31,7 @@ exports.index = async function (req, res) {
 
     //1
     //FILTERING AND PARTIAL TEXT SEARCH -- FIRST STAGE
-    if (filter) aggregate_options.push({$match: {"name": match_regex}});
+    if (search) aggregate_options.push({$match: {"name": match_regex}});
 
     //2
     //LOOKUP/JOIN -- SECOND STAGE
@@ -95,7 +95,7 @@ exports.index = async function (req, res) {
         aggregate_options.push({
             $match: {"start_date": {$lte: new Date(req.query.end)}}
         });
-    }else {
+    }else if (!search){
         aggregate_options.push({
             $match: {"start_date": {$gte: new Date()}}
         });
