@@ -9,6 +9,75 @@ const {uploader} = require('../utils/index');
 
 const limit_ = 5;
 
+//Get Popular Events
+const getPopularEvents = async function () {
+    let aggregate_options = [];
+
+    //PAGINATION -- set the options for pagination
+    const options = {
+        page: 1,
+        collation: {locale: 'en'},
+        customLabels: {
+            totalDocs: 'totalResults',
+            docs: 'events'
+        }
+    };
+
+    //2
+    //LOOKUP/JOIN -- SECOND STAGE
+    //FIRST JOIN  -- Category ===================================
+    // Here we use $lookup(aggregation) to get the relationship from event to categories (one to many).
+    aggregate_options.push({
+        $lookup: {
+            from: 'categories',
+            localField: "category",
+            foreignField: "_id",
+            as: "categories"
+        }
+    });
+    //deconstruct the $purchases array using $unwind(aggregation).
+    aggregate_options.push({$unwind: {path: "$categories", preserveNullAndEmptyArrays: true}});
+
+    //4
+    //FILTER BY DATE -- FOURTH STAGE
+    aggregate_options.push({
+        $match: {"start_date": {$gte: new Date()}}
+    });
+
+    //5
+    //SORTING -- FIFTH STAGE - SORT BY DATE
+    aggregate_options.push({
+        $sort: {"start_date": -1, "_id": -1}
+    });
+
+    //SELECT FIELDS
+    aggregate_options.push({
+        $project: {
+            _id: 1,
+            userId: 1,
+            name: 1,
+            location: 1,
+            start_date: 1,
+            end_date: 1,
+            description: 1,
+            category: { $ifNull: [ "$categories._id", null ] },
+            category_name: { $ifNull: [ "$categories.name", null ] },
+            image: 1,
+            createdAt: 1
+        }
+    });
+
+    aggregate_options.push({
+        $sample: { size: 5 }
+    });
+
+    // Set up the aggregation
+    const myAggregate = Event.aggregate(aggregate_options);
+    const result = await Event.aggregatePaginate(myAggregate, options);
+
+    return result.events;
+};
+
 // @route GET api/event
 // @desc Returns all events with pagination
 // @access Public
@@ -150,6 +219,7 @@ exports.index = async function (req, res) {
 
     const categories = await Category.find({});
     result["categories"] = categories;
+    result["popular"] = await getPopularEvents();
     result["grouped"] = group;
     res.status(200).json(result);
 };
