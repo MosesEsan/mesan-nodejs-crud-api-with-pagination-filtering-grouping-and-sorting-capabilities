@@ -171,12 +171,12 @@ exports.index = async function (req, res) {
     }
 
     //5
-    //SORTING -- FIFTH STAGE - SORT BY DATE
+    //SORTING -- FIFTH STAGE
+    let sort_order = req.query.sort_order && req.query.sort_order === 'asc' ? 1 : -1;
+    let sort_by = req.query.sort_by || "start_date";
     aggregate_options.push({
-        $sort: {
-            "start_date": req.query.sort_order && req.query.sort_order === 'asc' ? 1 : -1,
-            "_id": -1
-        }
+        $sort: {[sort_by]: sort_order},
+        "_id": -1
     });
 
     //SELECT FIELDS
